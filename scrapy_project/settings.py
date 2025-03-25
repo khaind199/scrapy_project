@@ -72,9 +72,14 @@ ES_INDEX = "news_articles"
 RABBITMQ_HOST = "localhost"
 RABBITMQ_QUEUE = "crawl_tasks"
 
+# Kích hoạt pipeline
 ITEM_PIPELINES = {
    "scrapy_project.pipelines.ElasticsearchPipeline": 300,
 }
+
+# Cấu hình logging
+LOG_LEVEL = 'INFO'
+LOG_FORMAT = '%(asctime)s [%(name)s] %(levelname)s: %(message)s'
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html

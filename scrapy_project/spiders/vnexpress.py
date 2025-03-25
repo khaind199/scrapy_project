@@ -1,19 +1,16 @@
-from scrapy_project.spiders.base_spider import BaseSpider
-from scrapy import Request
+# from scrapy_project.spiders.base_spider import BaseSpider
+# from scrapy import Request
 
-class VnExpressSpider(BaseSpider):
+
+import scrapy
+from urllib.parse import urljoin
+from datetime import datetime
+
+class VnExpressSpider(scrapy.Spider):
     name = "vnexpress"
     allowed_domains = ["vnexpress.net"]
-    
-    def start_requests(self):
-        # Lấy danh sách URL cần crawl từ RabbitMQ
-        start_urls = self.get_start_urls_from_rabbitmq()
-        if not start_urls:
-            start_urls = ["https://vnexpress.net/"]
-            
-        for url in start_urls:
-            yield Request(url, callback=self.parse)
-    
+    start_urls = ["https://vnexpress.net/"]
+
     def parse(self, response):
         articles = response.css("article.item-news")
         
@@ -23,8 +20,8 @@ class VnExpressSpider(BaseSpider):
             description = article.css("p.description a::text").get()
             
             if relative_link:
-                link = self.make_absolute_url(response.url, relative_link)
-                yield Request(
+                link = urljoin(response.url, relative_link)
+                yield response.follow(
                     link, 
                     callback=self.parse_detail, 
                     meta={
@@ -32,26 +29,34 @@ class VnExpressSpider(BaseSpider):
                         'description': description
                     }
                 )
-    
+
     def parse_detail(self, response):
         title = response.meta['title']
         description = response.meta['description']
         
         # Lấy nội dung chính
-        content = " ".join(response.css("article.fck_detail p::text").getall()).strip()
+        content = " ".join([
+            p.strip() for p in 
+            response.css("article.fck_detail p.Normal::text").getall()
+            if p.strip()
+        ])
         
         # Lấy thời gian xuất bản
         publish_time = response.css("span.date::text").get()
         
-        item = {
+        # Chuẩn hóa thời gian
+        if publish_time:
+            try:
+                publish_time = datetime.strptime(publish_time, '%d/%m/%Y, %H:%M').isoformat()
+            except ValueError:
+                publish_time = None
+        
+        yield {
             "title": title,
             "link": response.url,
             "description": description,
             "content": content,
-            "publish_time": publish_time
+            "publish_time": publish_time,
+            "source": "vnexpress",
+            "crawl_time": datetime.now().isoformat()
         }
-        
-        # Lưu vào Elasticsearch
-        self.save_to_elasticsearch(item)
-        
-        yield item
